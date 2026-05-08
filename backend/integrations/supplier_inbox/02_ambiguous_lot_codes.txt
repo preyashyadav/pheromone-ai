@@ -1,0 +1,28 @@
+From: customer.care@suncrestproduce.com
+To: recalls@yourstorechain.example
+Subject: Quality Alert — Roma Tomatoes (potential issue, lot codes may vary)
+Date: Wed, 06 May 2026 14:05:02 -0700
+
+Team,
+
+We’re investigating a potential contamination concern affecting Roma Tomatoes packed at Facility SC-7.
+
+The challenge: customer-facing packages may show either the “SC7” code, the full pack date, or a short Julian code depending on packaging line.
+
+POSSIBLY AFFECTED PRODUCT
+- Roma Tomatoes, 2 lb clamshell
+- Pack facility: SC-7
+- Pack dates: 04/27/2026–04/29/2026
+- Potential package codes (examples, not exhaustive):
+  - SC7 042826
+  - SC7-118 (Julian)
+  - 042826 SC7
+
+We will send a confirmed recall notice if the investigation determines risk. For now, please:
+- Increase inspection for damaged packaging and off-odors
+- Retain at least one label photo per store if found
+
+We apologize for the ambiguity and will follow up within 24 hours.
+
+Suncrest Produce Customer Care
+

@@ -1,0 +1,30 @@
+{
+  "address_1": "315 New Market Rd E",
+  "address_2": "",
+  "center_classification_date": "20250610",
+  "city": "Immokalee",
+  "classification": "Class I",
+  "code_info": [
+    "LOT 123",
+    "BEST BY 01/01/26"
+  ],
+  "country": "United States",
+  "distribution_pattern": "Product was distributed to AZ, CA, IL, FL, WI, MA, MS, MN, CA, NC, VA, TN, VT, CT, NY, MD, PA, NJ, TX",
+  "event_id": "97008",
+  "initial_firm_notification": "E-Mail",
+  "more_code_info": "",
+  "openfda": {},
+  "postal_code": "34142-3509",
+  "product_description": "Cucumber Super Selec Repacked by Lipman Produce Hendersonville, NC 28792, Product of USA",
+  "product_quantity": "16,504 cases total",
+  "product_type": "Food",
+  "reason_for_recall": "Potential Salmonella Contamination",
+  "recall_initiation_date": "20250520",
+  "recall_number": "H-0030-2025",
+  "recalling_firm": "LIPMAN FAMILY FARMS",
+  "report_date": "20250618",
+  "state": "FL",
+  "status": "Terminated",
+  "termination_date": "20250807",
+  "voluntary_mandated": "Voluntary: Firm initiated"
+}

@@ -416,8 +416,15 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
     # 1,500 finished product lots. Tie to production runs.
     finished_product_lot_rows: list[dict[str, Any]] = []
     fpl_codes: list[str] = []
+    clean_salsa_lot_codes: list[str] = []
     plant_codes = list(ids.facilities.keys())
     product_upcs = list(ids.finished_products.keys())
+    # Salsa-Verde scenario:
+    # - Keep the seeded contaminated lots P2-052126-A..F as the only *randomly generated* Salsa-Verde lots.
+    # - We'll inject one explicit clean lot later and stock it after the contaminated window, to enable
+    #   mixed/clean composition without preventing a 100% affected peak earlier.
+    if scenario in {"salsa_verde", "both"}:
+        product_upcs = [u for u in product_upcs if u != salsa_verde_seed.FINISHED_PRODUCT_UPC]
     # Deterministic, collision-free mapping (plant_code x day x batch_letter).
     for i in range(1500):
         upc = rng.choice(product_upcs)
@@ -438,6 +445,8 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
                 "best_by_date": produced_at + timedelta(days=rng.randint(60, 180)),
             }
         )
+        if scenario in {"salsa_verde", "both"} and upc == salsa_verde_seed.FINISHED_PRODUCT_UPC:
+            clean_salsa_lot_codes.append(lot_code)
 
     # Inject seeded lots P2-052126-A..F for Salsa Verde.
     if scenario in {"salsa_verde", "both"}:
@@ -454,6 +463,22 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
                 }
             )
             fpl_codes.append(lot_code)
+
+        # Ensure at least one clean Salsa-Verde lot exists for mixed-composition tests.
+        if not clean_salsa_lot_codes:
+            clean_code = "P1-051526-A"
+            finished_product_lot_rows.append(
+                {
+                    "id": det_uuid("fpl", clean_code),
+                    "finished_product_id": ids.finished_products[salsa_verde_seed.FINISHED_PRODUCT_UPC],
+                    "production_run_id": rng.choice(pr_ids),
+                    "lot_code": clean_code,
+                    "produced_at": datetime(2026, 5, 15, 10, 0, tzinfo=timezone.utc),
+                    "best_by_date": datetime(2026, 5, 15, 10, 0, tzinfo=timezone.utc) + timedelta(days=120),
+                }
+            )
+            fpl_codes.append(clean_code)
+            clean_salsa_lot_codes.append(clean_code)
 
     insert_many(
         engine,
@@ -558,11 +583,11 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
     # 8,000 pallets - tie to finished product lots and store shipments.
     pallet_rows: list[dict[str, Any]] = []
     pallet_ids: list[uuid.UUID] = []
-    random_fpl_codes = (
-        [c for c in fpl_codes if c not in set(salsa_verde_seed.PRODUCT_LOT_CODES)]
-        if scenario in {"salsa_verde", "both"}
-        else fpl_codes
-    )
+    if scenario in {"salsa_verde", "both"}:
+        excluded = set(salsa_verde_seed.PRODUCT_LOT_CODES) | set(clean_salsa_lot_codes)
+        random_fpl_codes = [c for c in fpl_codes if c not in excluded]
+    else:
+        random_fpl_codes = fpl_codes
     for i in range(8000):
         lot_code = rng.choice(random_fpl_codes)
         pid = det_uuid("pallet", str(i))
@@ -579,17 +604,41 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
 
     # Seed pallets for Salsa Verde: ensure they are shipped only to the 6 affected stores.
     seeded_pallet_ids: list[uuid.UUID] = []
+    seeded_pallet_ids_affected: list[uuid.UUID] = []
+    seeded_pallet_ids_clean: list[uuid.UUID] = []
     if scenario in {"salsa_verde", "both"}:
         for idx, lot_code in enumerate(salsa_verde_seed.PRODUCT_LOT_CODES):
             for k in range(20):  # 120 seeded pallets total
                 pid = det_uuid("pallet", "salsa", lot_code, str(k))
                 seeded_pallet_ids.append(pid)
+                seeded_pallet_ids_affected.append(pid)
                 pallet_rows.append(
                     {
                         "id": pid,
                         "finished_product_lot_id": det_uuid("fpl", lot_code),
                         "shipment_id": det_uuid("shipment", f"salsa-{idx}"),
                         "store_shipment_id": seeded_store_shipment_ids[k % len(seeded_store_shipment_ids)],
+                        "units_total": 24,
+                    }
+                )
+
+        # Add clean Salsa-Verde pallets to each affected store, but stock them *after* the contaminated window.
+        # This yields:
+        # - a period of 100% affected composition (peak=1.0 for Phase 5)
+        # - later a period of clean/mixed composition (Possible/Likely Unaffected tiers for Phase 6)
+        for store_name in salsa_verde_seed.ACME_AFFECTED_STORE_NAMES:
+            ssid = det_uuid("store_shipment", "salsa", store_name)
+            clean_lot = clean_salsa_lot_codes[0]
+            for k in range(20):  # 20 clean pallets per store (drives mixed composition probabilities)
+                pid = det_uuid("pallet", "salsa-clean", store_name, str(k))
+                seeded_pallet_ids.append(pid)
+                seeded_pallet_ids_clean.append(pid)
+                pallet_rows.append(
+                    {
+                        "id": pid,
+                        "finished_product_lot_id": det_uuid("fpl", clean_lot),
+                        "shipment_id": None,
+                        "store_shipment_id": ssid,
                         "units_total": 24,
                     }
                 )
@@ -636,9 +685,11 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
                 WHERE p.id IN (
                   SELECT id FROM pallets ORDER BY created_at NULLS LAST, id LIMIT 6000
                 )
+                  AND NOT (p.id = ANY(CAST(:seeded_pallet_ids AS uuid[])))
                 ON CONFLICT DO NOTHING
                 """
-            )
+            ),
+            {"seeded_pallet_ids": seeded_pallet_ids if scenario in {"salsa_verde", "both"} else []},
         )
 
         # Add extra split events for 500 pallets
@@ -663,6 +714,61 @@ def generate_time_series(engine: Engine, ids: StaticIds, seed: int, scenario: st
                 """
             )
         )
+
+        # Ensure Salsa-Verde seeded pallets are stocked deterministically:
+        # - affected pallets are stocked at arrival (ss.arrived_at + 1h)
+        # - clean pallets are stocked only after the contaminated window, so there exists a
+        #   moment where store composition is 100% affected (Phase 5 peak == 1.0).
+        if scenario in {"salsa_verde", "both"} and seeded_pallet_ids:
+            conn.execute(
+                text("DELETE FROM stocking_events WHERE pallet_id = ANY(CAST(:pids AS uuid[]))"),
+                {"pids": seeded_pallet_ids},
+            )
+        if scenario in {"salsa_verde", "both"} and seeded_pallet_ids_affected:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO stocking_events (id, store_id, pallet_id, finished_product_id, timestamp, units_added)
+                    SELECT
+                      gen_random_uuid(),
+                      ss.store_id,
+                      p.id,
+                      fpl.finished_product_id,
+                      ss.arrived_at + interval '1 hour',
+                      p.units_total
+                    FROM pallets p
+                    JOIN store_shipments ss ON ss.id = p.store_shipment_id
+                    JOIN finished_product_lots fpl ON fpl.id = p.finished_product_lot_id
+                    WHERE p.id = ANY(CAST(:pallet_ids AS uuid[]))
+                    ON CONFLICT DO NOTHING
+                    """
+                ),
+                {"pallet_ids": seeded_pallet_ids_affected},
+            )
+        if scenario in {"salsa_verde", "both"} and seeded_pallet_ids_clean:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO stocking_events (id, store_id, pallet_id, finished_product_id, timestamp, units_added)
+                    SELECT
+                      gen_random_uuid(),
+                      ss.store_id,
+                      p.id,
+                      fpl.finished_product_id,
+                      CAST(:late_ts AS timestamptz),
+                      p.units_total
+                    FROM pallets p
+                    JOIN store_shipments ss ON ss.id = p.store_shipment_id
+                    JOIN finished_product_lots fpl ON fpl.id = p.finished_product_lot_id
+                    WHERE p.id = ANY(CAST(:pallet_ids AS uuid[]))
+                    ON CONFLICT DO NOTHING
+                    """
+                ),
+                {
+                    "pallet_ids": seeded_pallet_ids_clean,
+                    "late_ts": (salsa_verde_seed.SHIP_WINDOW_END_UTC + timedelta(days=3, hours=12)).isoformat(),
+                },
+            )
 
     return {
         "ingredient_lots": len(ingredient_lot_rows),
@@ -793,31 +899,90 @@ def generate_customers_and_transactions(
             )
             tx_count += 1
 
-    # Salsa seed: ~1,800 transactions of Salsa Verde UPC across affected stores in the window.
+    # Salsa seed: ~2,400 transactions of Salsa Verde UPC across affected stores in the window.
     if scenario in {"salsa_verde", "both"}:
         affected_store_ids = [ids.stores[name] for name in salsa_verde_seed.ACME_AFFECTED_STORE_NAMES]
         start = salsa_verde_seed.SHIP_WINDOW_START_UTC
         end = salsa_verde_seed.SHIP_WINDOW_END_UTC
         window_days = (end - start).days + 1
-        for i in range(1800):
+        late_stock_ts = salsa_verde_seed.SHIP_WINDOW_END_UTC + timedelta(days=3, hours=12)
+        for i in range(2400):
             store_id = affected_store_ids[i % len(affected_store_ids)]
-            tm = start + timedelta(days=i % window_days, hours=12 + (i % 6))
+            # Align purchase timestamps so they occur after the contaminated pallets for that store arrive/stock.
+            store_offset_days = i % len(affected_store_ids)
+            tm = start + timedelta(days=store_offset_days + (i % window_days), hours=12 + (i % 6))
+            # Make Salsa-Verde match tests realistic:
+            # - Most buyers are identifiable (not all cash)
+            # - ~20% have lot codes captured that match the affected lots
+            # - Some have explicit clean lot capture to enable reassurance tiers
+            customer_id = customer_ids[i % len(customer_ids)]
+            # Keep most Salsa-Verde transactions identifiable; sprinkle some cash for degradation tests elsewhere.
+            payment_type = PaymentType.loyalty.value if (i % 17) != 0 else PaymentType.cash.value
+            li: dict[str, Any] = {
+                "finished_product_id": str(ids.finished_products[salsa_verde_seed.FINISHED_PRODUCT_UPC]),
+                "quantity_units": 1,
+            }
+            if i % 5 == 0:
+                # 20%: captured lot code that matches an affected lot (confirmed affected)
+                li["finished_product_lot_id"] = str(det_uuid("fpl", salsa_verde_seed.PRODUCT_LOT_CODES[i % len(salsa_verde_seed.PRODUCT_LOT_CODES)]))
+            elif i % 4 == 0:
+                # Additional clean-capture cases to enable reassurance buckets deterministically.
+                li["finished_product_lot_id"] = str(det_uuid("fpl", f"CAP-CLEAN-SALSA-{i%30}"))
             tx_rows.append(
                 {
                     "id": det_uuid("tx_salsa", str(i)),
                     "store_id": store_id,
-                    "customer_id": None,
+                    "customer_id": customer_id,
                     "timestamp": tm,
-                    "payment_type": PaymentType.cash.value,
-                    "line_items": [
-                        {
-                            "finished_product_id": str(ids.finished_products[salsa_verde_seed.FINISHED_PRODUCT_UPC]),
-                            "quantity_units": 1,
-                        }
-                    ],
+                    "payment_type": payment_type,
+                    "line_items": [li],
                 }
             )
-        tx_count += 1800
+        tx_count += 2400
+
+        # Extra transactions after clean pallets are stocked to drive:
+        # - Possible Affected tiers (mixed composition, no lot capture)
+        # - Reassurance buckets with high unique-customer coverage (clean lot capture)
+        # Concentrate the no-lot-capture "mixed probability" transactions on a subset of stores
+        # that have p(affected) in the 0.1–0.5 band at `late_stock_ts` (to reliably hit the
+        # Possible Affected count threshold).
+        mixed_store_ids = [affected_store_ids[0], affected_store_ids[1], affected_store_ids[-1]]
+        # Low-residual-affected stores: these stores have late-window composition where affected stock
+        # is a small residual share (1–10%), enabling the Likely Unaffected tier.
+        low_residual_store_ids = [affected_store_ids[2], affected_store_ids[3]]
+        for i in range(1200):
+            # Mix three groups (deterministic):
+            # - 600 mixed-probability tx (no lot capture) -> Possible Affected
+            # - 300 low-residual tx (no lot capture) -> Likely Unaffected
+            # - 300 clean-capture tx -> Confirmed Unaffected
+            if i < 600:
+                store_id = mixed_store_ids[i % len(mixed_store_ids)]
+                mode = "mixed_no_capture"
+            elif i < 900:
+                store_id = low_residual_store_ids[i % len(low_residual_store_ids)]
+                mode = "low_residual_no_capture"
+            else:
+                store_id = affected_store_ids[i % len(affected_store_ids)]
+                mode = "clean_capture"
+            tm = late_stock_ts + timedelta(hours=(i % 72))
+            customer_id = customer_ids[(i * 7) % len(customer_ids)]
+            li: dict[str, Any] = {
+                "finished_product_id": str(ids.finished_products[salsa_verde_seed.FINISHED_PRODUCT_UPC]),
+                "quantity_units": 1,
+            }
+            if mode == "clean_capture":
+                li["finished_product_lot_id"] = str(det_uuid("fpl", f"CAP-CLEAN-LATE-{i}"))
+            tx_rows.append(
+                {
+                    "id": det_uuid("tx_salsa_late", str(i)),
+                    "store_id": store_id,
+                    "customer_id": customer_id,
+                    "timestamp": tm,
+                    "payment_type": PaymentType.loyalty.value,
+                    "line_items": [li],
+                }
+            )
+        tx_count += 1200
 
     # Store-4-Fridge seed: ~75 transactions for refrigerated products in the failure window (Store 4 only).
     if scenario in {"store4_fridge", "both"}:

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
+import hashlib
+import json
 from typing import Any, Iterable
 
-from sqlalchemy import Engine, Select, delete, select, text
+from sqlalchemy import Engine, Select, delete, select, text, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.db.ctes import cte_blast_radius_from_ingredient_lot, cte_inventory_composition_at_time
@@ -23,6 +27,7 @@ from backend.db.models import (
     InstitutionalAccount,
     Manufacturer,
     NotificationDraft,
+    PosBlock,
     Pallet,
     PosTransaction,
     ProductionRun,
@@ -31,12 +36,14 @@ from backend.db.models import (
     RecallScopeVersion,
     RefrigerationEvent,
     RefrigerationZone,
+    RawRecallNotice,
     ScoredTransaction,
     Shipment,
     StockingEvent,
     Store,
     StoreShipment,
     Supplier,
+    UnverifiedRecallSignal,
     RecallCaseState,
 )
 
@@ -207,6 +214,119 @@ class RecallRepository(BaseRepository):
             s.commit()
             return rc.id
 
+    def create_recall_case_signal_detected(
+        self, *, source_type: str, store_id: uuid.UUID | None, source_details: dict[str, Any]
+    ) -> uuid.UUID:
+        with self.session() as s:
+            rc = RecallCase(
+                state=RecallCaseState.signal_detected,
+                source_type=source_type,
+                store_id=store_id,
+                source_details=source_details,
+            )
+            s.add(rc)
+            s.commit()
+            return rc.id
+
+    def upsert_raw_recall_notice(
+        self,
+        *,
+        source_type: str,
+        external_id: str | None,
+        source_url: str | None,
+        verified: bool,
+        published_at: datetime | None,
+        raw_json: dict[str, Any],
+        raw_text: str,
+    ) -> uuid.UUID:
+        with self.session() as s:
+            stmt = (
+                pg_insert(RawRecallNotice)
+                .values(
+                    source_type=source_type,
+                    external_id=external_id,
+                    source_url=source_url,
+                    verified=verified,
+                    published_at=published_at,
+                    raw_json=raw_json,
+                    raw_text=raw_text,
+                )
+                .on_conflict_do_nothing(constraint="uq_raw_recall_notice_source_external")
+                .returning(RawRecallNotice.id)
+            )
+            inserted = s.execute(stmt).scalar_one_or_none()
+            if inserted is not None:
+                s.commit()
+                return inserted
+
+            existing = (
+                s.execute(
+                    select(RawRecallNotice.id).where(
+                        RawRecallNotice.source_type == source_type,
+                        RawRecallNotice.external_id == external_id,
+                    )
+                )
+                .scalar_one()
+            )
+            return existing
+
+    def create_pos_block(
+        self,
+        *,
+        store_id: uuid.UUID,
+        upc: str,
+        lot_constraint: str | None,
+        active_until: datetime,
+    ) -> uuid.UUID:
+        with self.session() as s:
+            row = PosBlock(
+                store_id=store_id,
+                upc=upc,
+                lot_constraint=lot_constraint,
+                active_until=active_until,
+            )
+            s.add(row)
+            s.commit()
+            return row.id
+
+    def count_raw_recall_notices(self) -> int:
+        with self.session() as s:
+            return int(s.execute(select(func.count()).select_from(RawRecallNotice)).scalar_one())
+
+    def list_raw_recall_notice_external_ids(self, *, source_type: str) -> list[str]:
+        with self.session() as s:
+            rows = s.execute(
+                select(RawRecallNotice.external_id).where(RawRecallNotice.source_type == source_type)
+            ).all()
+            return [r[0] for r in rows if r[0] is not None]
+
+    def upsert_unverified_recall_signal(
+        self, *, source_url: str | None, reason: str, raw_payload: dict[str, Any]
+    ) -> uuid.UUID:
+        content = json.dumps(
+            {"source_url": source_url, "reason": reason, "raw_payload": raw_payload},
+            sort_keys=True,
+            default=str,
+        )
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        with self.session() as s:
+            stmt = (
+                pg_insert(UnverifiedRecallSignal)
+                .values(source_url=source_url, reason=reason, content_hash=content_hash, raw_payload=raw_payload)
+                .on_conflict_do_nothing(index_elements=[UnverifiedRecallSignal.content_hash])
+                .returning(UnverifiedRecallSignal.id)
+            )
+            inserted = s.execute(stmt).scalar_one_or_none()
+            if inserted is not None:
+                s.commit()
+                return inserted
+
+            existing = (
+                s.execute(select(UnverifiedRecallSignal.id).where(UnverifiedRecallSignal.content_hash == content_hash))
+                .scalar_one()
+            )
+            return existing
+
     def attach_spec(self, recall_case_id: uuid.UUID, spec: dict[str, Any]) -> uuid.UUID:
         with self.session() as s:
             row = RecallSpecRow(recall_case_id=recall_case_id, spec=spec)
@@ -217,6 +337,80 @@ class RecallRepository(BaseRepository):
     def get_recall_case(self, recall_case_id: uuid.UUID) -> RecallCase | None:
         with self.session() as s:
             return s.get(RecallCase, recall_case_id)
+
+    def upsert_scored_transactions(self, *, recall_case_id: uuid.UUID, scored: Iterable[Any]) -> None:
+        """
+        Insert or update scored transaction rows for a recall case.
+
+        Expects each item to be either:
+        - an ORM ScoredTransaction instance (transaction_id, affected_probability, details)
+        - an object with `to_row(recall_case_id=...)` returning ScoredTransaction
+        """
+        rows: list[dict[str, Any]] = []
+        for item in scored:
+            row_obj: Any
+            if hasattr(item, "to_row"):
+                row_obj = item.to_row(recall_case_id=recall_case_id)
+            else:
+                row_obj = item
+            tx_id = getattr(row_obj, "transaction_id", None)
+            ap = getattr(row_obj, "affected_probability", None)
+            details = getattr(row_obj, "details", None)
+            if tx_id is None or ap is None:
+                continue
+            rows.append(
+                {
+                    "recall_case_id": recall_case_id,
+                    "transaction_id": tx_id,
+                    "affected_probability": int(ap),
+                    "details": details if isinstance(details, dict) else {},
+                }
+            )
+        if not rows:
+            return
+        with self.session() as s:
+            stmt = (
+                pg_insert(ScoredTransaction)
+                .values(rows)
+                .on_conflict_do_update(
+                    constraint="uq_score_case_tx",
+                    set_={
+                        "affected_probability": pg_insert(ScoredTransaction).excluded.affected_probability,
+                        "details": pg_insert(ScoredTransaction).excluded.details,
+                    },
+                )
+            )
+            s.execute(stmt)
+            s.commit()
+
+    def insert_notification_drafts(self, *, recall_case_id: uuid.UUID, drafts: Iterable[Any]) -> None:
+        """
+        Insert notification draft rows for a recall case.
+
+        Expects each item to be either:
+        - an ORM NotificationDraft instance
+        - an object with `to_row(recall_case_id=...)` returning NotificationDraft
+
+        Note: The current schema does not enforce draft idempotency (no unique constraint).
+        """
+        rows: list[NotificationDraft] = []
+        for item in drafts:
+            row_obj: Any
+            if hasattr(item, "to_row"):
+                row_obj = item.to_row(recall_case_id=recall_case_id)
+            else:
+                row_obj = item
+            if not isinstance(row_obj, NotificationDraft):
+                continue
+            rows.append(row_obj)
+        if not rows:
+            return
+        # Deterministic insert order reduces deadlock risk under concurrency.
+        rows.sort(key=lambda r: (str(r.customer_id or ""), r.confidence_tier, r.channel))
+        with self.session() as s:
+            for r in rows:
+                s.add(r)
+            s.commit()
 
     def update_recall_case_state(self, recall_case_id: uuid.UUID, state: str) -> None:
         with self.session() as s:

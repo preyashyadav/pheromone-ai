@@ -5,6 +5,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+import docker
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
@@ -23,11 +24,18 @@ from backend.db.repositories import (
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer, None, None]:
+    try:
+        docker.from_env().ping()
+    except Exception:
+        pytest.skip("Docker is not available; skipping Postgres-backed integration tests.")
     container = PostgresContainer(
         "postgres:16", username="postgres", password="postgres", dbname="pheromone_test", driver="psycopg"
     )
-    with container as c:
-        yield c
+    try:
+        with container as c:
+            yield c
+    except Exception:
+        pytest.skip("Docker is available but Postgres container could not start; skipping integration tests.")
 
 
 def _alembic_config(db_url: str) -> Config:

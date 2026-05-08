@@ -5,6 +5,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+import docker
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
@@ -13,11 +14,18 @@ from testcontainers.postgres import PostgresContainer
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer, None, None]:
+    try:
+        docker.from_env().ping()
+    except Exception:
+        pytest.skip("Docker is not available; skipping Postgres-backed generator tests.")
     container = PostgresContainer(
         "postgres:16", username="postgres", password="postgres", dbname="pheromone_gen_test", driver="psycopg"
     )
-    with container as c:
-        yield c
+    try:
+        with container as c:
+            yield c
+    except Exception:
+        pytest.skip("Docker is available but Postgres container could not start; skipping generator tests.")
 
 
 def _alembic_config(db_url: str) -> Config:
@@ -47,4 +55,3 @@ def engine(db_url: str) -> Engine:
         conn.execute(text("CREATE SCHEMA public;"))
     command.upgrade(_alembic_config(db_url), "head")
     return engine
-

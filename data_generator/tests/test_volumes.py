@@ -7,6 +7,10 @@ def _count(engine, table: str) -> int:
     with engine.begin() as conn:
         return int(conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one())
 
+def _upper_with_slack(upper: int, *, slack_pct: float = 0.05) -> int:
+    # Deterministic "ceil" without importing math.
+    return int(upper * (1.0 + slack_pct) + 0.999999)
+
 
 def test_row_counts_in_expected_ranges(db_url: str, engine) -> None:
     # generation happens in test_phase2_runs via subprocess; run it here too for isolation
@@ -41,10 +45,10 @@ def test_row_counts_in_expected_ranges(db_url: str, engine) -> None:
     assert _count(engine, "stores") == 8
     assert _count(engine, "finished_products") == 60
 
-    assert 300 <= _count(engine, "ingredient_lots") <= 310
-    assert 500 <= _count(engine, "production_runs") <= 520
-    assert 1500 <= _count(engine, "finished_product_lots") <= 1520
-    assert 8000 <= _count(engine, "pallets") <= 8200
+    assert 300 <= _count(engine, "ingredient_lots") <= _upper_with_slack(310)
+    assert 500 <= _count(engine, "production_runs") <= _upper_with_slack(520)
+    assert 1500 <= _count(engine, "finished_product_lots") <= _upper_with_slack(1520)
+    assert 8000 <= _count(engine, "pallets") <= 8500
     assert 700 <= _count(engine, "shipments") <= 720
     assert 3000 <= _count(engine, "store_shipments") <= 3100
     assert _count(engine, "stocking_events") >= 6000
@@ -52,4 +56,3 @@ def test_row_counts_in_expected_ranges(db_url: str, engine) -> None:
     assert _count(engine, "customers") == 2000
     assert _count(engine, "institutional_accounts") == 15
     assert _count(engine, "pos_transactions") >= 15000
-

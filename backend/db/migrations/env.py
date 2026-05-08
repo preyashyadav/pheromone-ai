@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+
+_HERE = Path(__file__).resolve()
+# Ensure repo root is importable when running `alembic` from backend/.
+_REPO_ROOT = _HERE.parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 from backend.db.models import Base  # noqa: E402
 
@@ -19,9 +27,13 @@ target_metadata = Base.metadata
 
 def _get_url() -> str:
     url = os.environ.get("DATABASE_URL")
-    if not url:
-        raise RuntimeError("DATABASE_URL env var is required for Alembic.")
-    return url
+    if url:
+        return url
+    # Fallback to alembic.ini value for convenience (env var still preferred).
+    ini_url = config.get_main_option("sqlalchemy.url")
+    if ini_url:
+        return ini_url
+    raise RuntimeError("Set DATABASE_URL or sqlalchemy.url for Alembic.")
 
 
 def run_migrations_offline() -> None:

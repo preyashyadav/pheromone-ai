@@ -1,0 +1,30 @@
+From: recalls@harborviewfoods.com
+To: recalls@yourstorechain.example
+Subject: Recall Notice — Sesame Tahini supplied for multiple private-label items
+Date: Thu, 07 May 2026 09:31:18 -0700
+
+Hello,
+
+Harborview Foods is issuing a recall for a batch of Sesame Tahini (bulk) due to undeclared peanut allergen detected via supplier testing.
+
+IMPORTANT: This ingredient was supplied to you for multiple finished products under your private label and may affect more than one SKU.
+
+AFFECTED INGREDIENT
+- Ingredient: Sesame Tahini (bulk)
+- Ingredient Lot: HV-TAH-032526-B
+- Received window: 03/27/2026–04/02/2026
+
+POTENTIALLY AFFECTED FINISHED PRODUCTS (if produced using HV-TAH-032526-B)
+- Private Label Hummus Classic, 10 oz (UPC 0 12345 67890 5)
+- Private Label Hummus Roasted Garlic, 10 oz (UPC 0 12345 67891 2)
+- Private Label Tahini Sauce, 8 oz (UPC 0 12345 67910 9)
+
+ACTION REQUIRED
+- Place affected finished products and any remaining tahini ingredient on hold
+- Provide production dates / lot codes if available for your finished products
+
+This is a Class I situation for customers with peanut allergy.
+
+Sincerely,
+Harborview Foods Recall Coordinator
+

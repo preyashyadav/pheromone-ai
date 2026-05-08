@@ -1,0 +1,28 @@
+From: qa@ridgewaydairy.example
+To: recalls@yourstorechain.example
+Subject: Market Withdrawal — Packaging seal integrity: Ridgeway Greek Yogurt 16oz
+Date: Thu, 07 May 2026 16:44:55 -0700
+
+Hello Retail Partner,
+
+Ridgeway Dairy is issuing a MARKET WITHDRAWAL (not a health hazard recall at this time) for certain Ridgeway Greek Yogurt 16oz cups due to seal integrity issues that may cause spoilage.
+
+PRODUCT
+- Ridgeway Greek Yogurt Plain 16oz
+- UPC: 0 99887 00123 4
+- Plant Code: RD-2
+- Cup codes: RD2 051026 A through RD2 051126 C
+
+RISK
+- Potential premature spoilage; customer complaints include swelling lids and off-flavor.
+
+RETAIL ACTION
+- Remove affected date codes from sale
+- Offer refund/exchange per your standard policy
+- Hold product for credit processing
+
+We will advise if this escalates to a formal recall.
+
+Thank you,
+Ridgeway Dairy QA
+

@@ -111,6 +111,7 @@ class ContaminationStatus(str, enum.Enum):
 
 class RecallCaseState(str, enum.Enum):
     # 20-state machine will be defined in orchestration/state.py later; store raw label now.
+    signal_detected = "signal_detected"
     created = "created"
     intake_parsed = "intake_parsed"
     tracing = "tracing"
@@ -422,6 +423,33 @@ class StockingEvent(Base):
     )
 
 
+class InventoryCompositionSnapshot(Base):
+    __tablename__ = "inventory_composition_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    store_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+    )
+    finished_product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("finished_products.id", ondelete="CASCADE"), nullable=False
+    )
+    snapshot_hour: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    composition: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "store_id",
+            "finished_product_id",
+            "snapshot_hour",
+            name="uq_composition_snapshot_store_product_hour",
+        ),
+        Index("ix_comp_snap_store_product_hour", "store_id", "finished_product_id", "snapshot_hour"),
+    )
+
+
 class Customer(Base):
     __tablename__ = "customers"
 
@@ -520,6 +548,11 @@ class RecallCase(Base):
         nullable=False,
         default=RecallCaseState.created,
     )
+    source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    store_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stores.id", ondelete="SET NULL"), nullable=True
+    )
+    source_details: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -623,6 +656,19 @@ class NotificationDraft(Base):
     )
 
 
+class PosBlock(Base):
+    __tablename__ = "pos_blocks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    store_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+    )
+    upc: Mapped[str] = mapped_column(String(32), nullable=False)
+    lot_constraint: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    active_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class Approval(Base):
     __tablename__ = "approvals"
 
@@ -670,6 +716,43 @@ class RecallScopeVersion(Base):
     recall_case: Mapped["RecallCase"] = relationship(back_populates="scope_versions", passive_deletes=True)
 
     __table_args__ = (UniqueConstraint("recall_case_id", "version", name="uq_scope_version"),)
+
+
+class RawRecallNotice(Base):
+    __tablename__ = "raw_recall_notices"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    raw_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("source_type", "external_id", name="uq_raw_recall_notice_source_external"),
+        Index("ix_raw_recall_notices_source_type", "source_type"),
+        Index("ix_raw_recall_notices_external_id", "external_id"),
+    )
+
+
+class UnverifiedRecallSignal(Base):
+    __tablename__ = "unverified_recall_signals"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (Index("ix_unverified_recall_signals_created_at", "created_at"),)
 
 
 # Indexes on every FK are created in the migration for deterministic naming.

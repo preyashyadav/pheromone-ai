@@ -1,0 +1,20 @@
+From: compliance@westforkfrozen.example
+To: recalls@yourstorechain.example
+Subject: UPDATE — Retraction of prior alert (WestFork Frozen Berries)
+Date: Fri, 08 May 2026 07:18:09 -0700
+
+Hello,
+
+This message retracts our previous “Quality Alert” dated 05/06/2026 regarding WestFork Frozen Berries (3 lb).
+
+After additional testing and review, the suspected issue was traced to a third-party logistics temperature excursion unrelated to product safety, and no recall is being initiated.
+
+WHAT THIS MEANS
+- No product removal is required at this time
+- If you placed product on hold, you may return it to sale
+- Please discard the prior notice for audit purposes; keep this retraction email as the final communication
+
+We apologize for the disruption and appreciate your partnership.
+
+WestFork Frozen Compliance Team
+

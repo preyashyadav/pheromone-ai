@@ -1,0 +1,32 @@
+From: quality@northvalleyingredients.com
+To: recalls@yourstorechain.example
+Subject: URGENT — Voluntary recall notice: Ground Cumin (Lot NV-CU-041526-A)
+Date: Tue, 05 May 2026 08:12:41 -0700
+
+Hello Recall Team,
+
+North Valley Ingredients is initiating a voluntary recall of one lot of Ground Cumin (25 lb foodservice bags) due to potential Salmonella contamination identified in environmental monitoring.
+
+PRODUCT
+- Item: Ground Cumin, 25 lb bag
+- Internal Item Code: CU25
+- Supplier Lot: NV-CU-041526-A
+- Production Date: 04/15/2026
+- Best By: 04/15/2027
+
+AFFECTED DISTRIBUTION
+- Shipped to: CA, NV, OR
+- Ship window: 04/18/2026–04/30/2026
+
+ACTION REQUIRED
+1) Immediately stop using and segregate inventory with Supplier Lot NV-CU-041526-A
+2) Hold product for pickup; do not destroy until instructed
+3) Reply with quantities on hand and locations (store + backroom)
+
+If you need supporting documentation, we can provide the COA and shipment trace.
+
+Regards,
+Maria Chen
+Quality Assurance Manager
+North Valley Ingredients
+
