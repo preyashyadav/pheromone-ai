@@ -110,17 +110,25 @@ class ContaminationStatus(str, enum.Enum):
 
 
 class RecallCaseState(str, enum.Enum):
-    # 20-state machine will be defined in orchestration/state.py later; store raw label now.
     signal_detected = "signal_detected"
     created = "created"
+    intake_queued = "intake_queued"
+    intake_running = "intake_running"
     intake_parsed = "intake_parsed"
-    tracing = "tracing"
-    traced = "traced"
-    scoring = "scoring"
-    scored = "scored"
-    ops_queueing = "ops_queueing"
-    comms_drafting = "comms_drafting"
-    awaiting_approval = "awaiting_approval"
+    requires_human_review = "requires_human_review"
+    scope_review_pending = "scope_review_pending"
+    scope_review_approved = "scope_review_approved"
+    trace_queued = "trace_queued"
+    trace_running = "trace_running"
+    trace_completed = "trace_completed"
+    match_queued = "match_queued"
+    match_running = "match_running"
+    match_completed = "match_completed"
+    ops_running = "ops_running"
+    ops_completed = "ops_completed"
+    comms_running = "comms_running"
+    comms_completed = "comms_completed"
+    awaiting_manager_approval = "awaiting_manager_approval"
     closed = "closed"
 
 

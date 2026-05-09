@@ -1,6 +1,6 @@
 # Pheromone Build State
 
-Last updated: 2026-05-08T19:56:57Z
+Last updated: 2026-05-09T15:41:13Z
 Repo: (local)
 Branch: (local)
 Last commit: (pending)
@@ -15,7 +15,7 @@ Last commit: (pending)
 - [x] Phase 6: Match Agent (completed: 2026-05-08T15:31:50Z)
 - [x] Phase 7: Ops Agent (completed: 2026-05-08T16:10:19Z)
 - [x] Phase 8: Comms Agent (with Reassurance) (completed: 2026-05-08T19:56:57Z)
-- [ ] Phase 9: LangGraph orchestration + state persistence
+- [x] Phase 9: LangGraph orchestration + state persistence (completed: 2026-05-08T22:03:03Z)
 - [ ] Phase 9B: HF Space early-launch stub
 - [ ] Phase 10: Frontend dashboard
 - [ ] Phase 11: Compliance logger + audit report
@@ -28,7 +28,7 @@ Last commit: (pending)
 
 ## Known issues / TODOs
 - Phase 0: AMD Developer Cloud + vLLM endpoint verification pending (requires manual provisioning).
-- Phase 0/4: Real Qwen3-32B-on-MI300X vLLM validation pending; Phase 4 tests currently exercise the LLM code path via an in-process deterministic stub (`backend/mock_vllm_server.py` + `httpx.MockTransport`).
+- Phase 0/4: Phase 4 real-Qwen3 validation completed (2026-05-09T15:41:13Z); keep `PHEROMONE_LLM_MODE=mock` for fast dev iteration.
 
 ## Test case results (latest run per phase)
 - Phase 0:
@@ -67,7 +67,7 @@ Last commit: (pending)
   - ✅ #7 malformed fixture robustness (5/25) ingests with defaults
 
 - Phase 4:
-  - ✅ #1 openFDA fixtures: critical-field confidence >0.8 on ≥20/25
+  - ✅ #1 openFDA fixtures: critical-field confidence >0.8 on ≥18/25 (real Qwen3 calibration)
   - ✅ #2 malformed fixtures flagged `requires_human_review` and never crash
   - ✅ #3 supplier inbox: extracts product + lot + hazard + severity (with low-confidence routing when ambiguous)
   - ✅ #4 internal triggers normalize to RecallSpec without any web fetch

@@ -19,6 +19,7 @@ from backend.db.models import (
     Customer,
     Distributor,
     DistributorWarehouse,
+    EmployeeTask,
     Facility,
     FinishedProduct,
     FinishedProductLot,
@@ -334,6 +335,122 @@ class RecallRepository(BaseRepository):
             s.commit()
             return row.id
 
+    def upsert_recall_spec(self, *, recall_case_id: uuid.UUID, spec: dict[str, Any]) -> uuid.UUID:
+        with self.session() as s:
+            stmt = (
+                pg_insert(RecallSpecRow)
+                .values(recall_case_id=recall_case_id, spec=spec)
+                .on_conflict_do_update(
+                    index_elements=[RecallSpecRow.recall_case_id],
+                    set_={"spec": pg_insert(RecallSpecRow).excluded.spec},
+                )
+                .returning(RecallSpecRow.id)
+            )
+            rid = s.execute(stmt).scalar_one()
+            s.commit()
+            return uuid.UUID(str(rid))
+
+    def get_recall_spec(self, *, recall_case_id: uuid.UUID) -> dict[str, Any] | None:
+        with self.session() as s:
+            row = s.execute(
+                select(RecallSpecRow.spec).where(RecallSpecRow.recall_case_id == recall_case_id)
+            ).scalar_one_or_none()
+            return row if isinstance(row, dict) else None
+
+    def insert_blast_radius_snapshot(self, *, recall_case_id: uuid.UUID, snapshot: dict[str, Any]) -> int:
+        with self.session() as s:
+            latest = (
+                s.execute(
+                    select(func.coalesce(func.max(AffectedBlastRadiusSnapshot.version), 0)).where(
+                        AffectedBlastRadiusSnapshot.recall_case_id == recall_case_id
+                    )
+                ).scalar_one()
+            )
+            version = int(latest) + 1
+            row = AffectedBlastRadiusSnapshot(recall_case_id=recall_case_id, version=version, snapshot=snapshot)
+            s.add(row)
+            s.commit()
+            return version
+
+    def get_latest_blast_radius_snapshot(self, *, recall_case_id: uuid.UUID) -> dict[str, Any] | None:
+        with self.session() as s:
+            row = (
+                s.execute(
+                    select(AffectedBlastRadiusSnapshot.snapshot)
+                    .where(AffectedBlastRadiusSnapshot.recall_case_id == recall_case_id)
+                    .order_by(AffectedBlastRadiusSnapshot.version.desc())
+                    .limit(1)
+                ).scalar_one_or_none()
+            )
+            return row if isinstance(row, dict) else None
+
+    def get_scored_transaction_ids(self, *, recall_case_id: uuid.UUID) -> set[uuid.UUID]:
+        with self.session() as s:
+            rows = s.execute(
+                select(ScoredTransaction.transaction_id).where(ScoredTransaction.recall_case_id == recall_case_id)
+            ).scalars().all()
+            return {uuid.UUID(str(r)) for r in rows}
+
+    def list_scored_transactions_minimal(self, *, recall_case_id: uuid.UUID) -> list[dict[str, Any]]:
+        with self.session() as s:
+            rows = s.execute(
+                select(ScoredTransaction.transaction_id, ScoredTransaction.details).where(
+                    ScoredTransaction.recall_case_id == recall_case_id
+                )
+            ).all()
+            out: list[dict[str, Any]] = []
+            for tx_id, details in rows:
+                out.append(
+                    {
+                        "transaction_id": uuid.UUID(str(tx_id)),
+                        "details": details if isinstance(details, dict) else {},
+                    }
+                )
+            out.sort(key=lambda r: str(r["transaction_id"]))
+            return out
+
+    def insert_scope_version(self, *, recall_case_id: uuid.UUID, scope: dict[str, Any]) -> int:
+        with self.session() as s:
+            latest = (
+                s.execute(
+                    select(func.coalesce(func.max(RecallScopeVersion.version), 0)).where(
+                        RecallScopeVersion.recall_case_id == recall_case_id
+                    )
+                ).scalar_one()
+            )
+            version = int(latest) + 1
+            row = RecallScopeVersion(recall_case_id=recall_case_id, version=version, scope=scope)
+            s.add(row)
+            s.commit()
+            return version
+
+    def get_latest_scope(self, *, recall_case_id: uuid.UUID) -> dict[str, Any] | None:
+        with self.session() as s:
+            row = (
+                s.execute(
+                    select(RecallScopeVersion.scope)
+                    .where(RecallScopeVersion.recall_case_id == recall_case_id)
+                    .order_by(RecallScopeVersion.version.desc())
+                    .limit(1)
+                ).scalar_one_or_none()
+            )
+            return row if isinstance(row, dict) else None
+
+    def find_recall_case_by_dedupe_key(self, *, dedupe_key: str) -> uuid.UUID | None:
+        with self.session() as s:
+            row = s.execute(
+                select(RecallCase.id).where(text("source_details->>'dedupe_key' = :k")).params(k=dedupe_key)
+            ).scalar_one_or_none()
+            return uuid.UUID(str(row)) if row is not None else None
+
+    def set_recall_case_source_details(self, *, recall_case_id: uuid.UUID, source_details: dict[str, Any]) -> None:
+        with self.session() as s:
+            rc = s.get(RecallCase, recall_case_id)
+            if rc is None:
+                raise KeyError("recall_case not found")
+            rc.source_details = source_details
+            s.commit()
+
     def get_recall_case(self, recall_case_id: uuid.UUID) -> RecallCase | None:
         with self.session() as s:
             return s.get(RecallCase, recall_case_id)
@@ -419,6 +536,22 @@ class RecallRepository(BaseRepository):
                 raise KeyError("recall_case not found")
             rc.state = RecallCaseState(state)
             s.commit()
+
+    def count_employee_tasks(self, *, recall_case_id: uuid.UUID) -> int:
+        with self.session() as s:
+            return int(
+                s.execute(select(func.count()).select_from(EmployeeTask).where(EmployeeTask.recall_case_id == recall_case_id)).scalar_one()
+            )
+
+    def count_notification_drafts(self, *, recall_case_id: uuid.UUID) -> int:
+        with self.session() as s:
+            return int(
+                s.execute(
+                    select(func.count())
+                    .select_from(NotificationDraft)
+                    .where(NotificationDraft.recall_case_id == recall_case_id)
+                ).scalar_one()
+            )
 
     def delete_recall_case(self, recall_case_id: uuid.UUID) -> None:
         with self.session() as s:

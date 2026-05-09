@@ -541,12 +541,14 @@ class CommsAgent:
         return subject, body, proof
 
     def _vulnerable_note(self, *, profile: dict[str, Any], hazard_type: HazardType, language: str) -> str:
-        if hazard_type != HazardType.listeria:
+        if hazard_type not in {HazardType.listeria, HazardType.salmonella, HazardType.ecoli}:
             return ""
 
         kids_at_home = bool(profile.get("kids_at_home"))
+        pregnancy = bool(profile.get("pregnancy_status"))
         immuno = bool(profile.get("immunocompromised"))
         kids_list = profile.get("kids")
+        has_under5 = False
         has_infant = False
         if isinstance(kids_list, list):
             for k in kids_list:
@@ -556,13 +558,19 @@ class CommsAgent:
                     age = float(k.get("age"))
                 except Exception:
                     continue
+                if age <= 5:
+                    has_under5 = True
                 if age <= 2:
                     has_infant = True
-        if not (kids_at_home or immuno or has_infant):
+        if not (kids_at_home or pregnancy or immuno or has_under5 or has_infant):
             return ""
+
+        hz = hazard_type.value if hasattr(hazard_type, "value") else str(hazard_type)
         if language.startswith("es"):
-            return "Nota de riesgo: La listeria puede ser especialmente peligrosa para bebés y personas vulnerables."
-        return "Risk note: Listeria can be especially dangerous for infants and vulnerable individuals."
+            return (
+                f"Nota de riesgo: El CDC señala mayor riesgo de enfermedad grave para bebés/niños pequeños y otras personas vulnerables con {hz}."
+            )
+        return f"Risk note: The CDC notes higher risk of severe illness for infants/young children and other vulnerable individuals with {hz}."
 
     def _provenance_proof_points(self, *, tx: dict[str, Any], affected_plants: set[str]) -> list[str]:
         store_id = tx.get("store_id")
@@ -648,16 +656,79 @@ class CommsAgent:
             return None
 
         schema = _LlmDraftOut.model_json_schema()
+        t = (tier or "").strip().lower()
+
+        tone = ""
+        required_reassurance = ""
+        if t in {ConfidenceTier.confirmed_affected.value, ConfidenceTier.likely_affected.value}:
+            tone = (
+                "Tone (URGENT tier): factual, urgent, action-oriented. Avoid alarming language but be unambiguous.\n"
+                "Max 4 sentences.\n"
+            )
+        elif t == ConfidenceTier.possible_affected.value:
+            tone = (
+                "Tone (POSSIBLE tier): gentle, instructional. The customer may NOT be affected.\n"
+                "Lead with: 'Your purchase may include a recalled product' (not 'is').\n"
+                "Max 5 sentences. Include lot-check instructions.\n"
+            )
+        elif t in {ConfidenceTier.confirmed_unaffected.value, ConfidenceTier.likely_unaffected.value}:
+            tone = (
+                "Tone (REASSURANCE tier): reassuring, transparent, time-bound.\n"
+                "Goal: prevent panic refunds by providing concrete proof and calibrated language.\n"
+            )
+            required_reassurance = (
+                "REASSURANCE REQUIRED ELEMENTS (must include all):\n"
+                "1) Acknowledge the customer may have heard about the recall.\n"
+                "2) Concrete provenance proof from proof_points (do NOT omit this).\n"
+                "3) Time-bound language using as_of_utc (e.g., 'as of <timestamp>').\n"
+                "4) Conditional follow-up promise: 'We will notify you immediately if the recall scope changes.'\n"
+                "5) Forbidden phrases: 'guaranteed safe', '100% safe', 'definitely fine'.\n"
+            )
+
+        vuln_guidance = (
+            "Vulnerable household rule:\n"
+            "- If vulnerable.kids_under5 is true OR vulnerable.pregnancy is true OR vulnerable.immunocompromised is true,\n"
+            "  AND hazard_type is listeria/salmonella/ecoli: include one sentence noting higher risk for infants/young children\n"
+            "  (briefly reference CDC guidance).\n"
+        )
+
         system_prompt = (
             "You are Pheromone Comms Agent. Draft a customer notification.\n"
-            "Constraints:\n"
-            "- Output MUST be valid JSON matching the provided schema.\n"
+            "Output requirements:\n"
+            "- Output MUST be valid JSON matching the provided schema. No markdown. No commentary. No <think>.\n"
+            "CRITICAL: Use ONLY facts provided in the structured input.\n"
+            "- Do NOT invent product names, lot codes, plant names, distributor names, or store names.\n"
+            "- If a detail is missing, omit it or use a generic phrase like 'the recalled product'.\n"
+            "- Fabricating provenance facts is the most serious error.\n"
+            "Safety + privacy:\n"
             "- Do NOT include phone numbers, emails, addresses, payment details, or other PII.\n"
-            "- Avoid absolute claims (never say 'guaranteed safe').\n"
-            "- Include explicit time-bound language (e.g., 'as of <timestamp>').\n"
-            "- Include concrete provenance proof using the provided proof_points.\n"
-            f"- Write in language: {language}\n"
+            "- Avoid absolute safety claims.\n"
+            "Content requirements:\n"
+            "- Include explicit time-bound language using as_of_utc.\n"
+            "- Include concrete provenance proof using proof_points.\n"
+            f"{vuln_guidance}"
+            f"{tone}"
+            f"{required_reassurance}"
+            f"Language: write the message in {language} (default en if unspecified), and set output.language accordingly.\n"
         )
+        customer_uuid = tx.get("customer_id") if isinstance(tx.get("customer_id"), uuid.UUID) else None
+        customer = self._load_customer(customer_uuid) if customer_uuid else {"profile": {}}
+        profile = customer.get("profile") if isinstance(customer, dict) else {}
+        if not isinstance(profile, dict):
+            profile = {}
+        kids_list = profile.get("kids")
+        kids_under5 = False
+        if isinstance(kids_list, list):
+            for k in kids_list:
+                if not isinstance(k, dict):
+                    continue
+                try:
+                    age = float(k.get("age"))
+                except Exception:
+                    continue
+                if age <= 5:
+                    kids_under5 = True
+                    break
         user = {
             "tier": tier,
             "recall_id": recall_spec.recall_id,
@@ -665,12 +736,109 @@ class CommsAgent:
             "hazard_type": (recall_spec.hazard_type.value if hasattr(recall_spec.hazard_type, "value") else str(recall_spec.hazard_type)),
             "as_of_utc": now.isoformat().replace("+00:00", "Z"),
             "proof_points": proof_points,
+            "vulnerable": {
+                "kids_under5": bool(profile.get("kids_at_home")) or kids_under5,
+                "pregnancy": bool(profile.get("pregnancy_status")),
+                "immunocompromised": bool(profile.get("immunocompromised")),
+            },
         }
+
+        # Tier-specific few-shots (teach tone + non-fabrication).
+        few_shots: list[dict[str, str]] = []
+        if t == ConfidenceTier.confirmed_affected.value:
+            few_shots = [
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "tier": "confirmed_affected",
+                            "recall_id": "RG-4429",
+                            "severity": "high",
+                            "hazard_type": "salmonella",
+                            "as_of_utc": "2026-05-09T00:00:00Z",
+                            "proof_points": ["Your purchase may be linked to plant(s) P2; the affected plant set includes P2."],
+                        }
+                    ),
+                },
+                {
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "subject": "Urgent action required: Recall RG-4429 (high)",
+                            "body": "Your purchase is confirmed affected by this recall. Do not consume the recalled product; discard it or return it for a refund. Provenance proof: Your purchase may be linked to plant(s) P2; the affected plant set includes P2. As of 2026-05-09T00:00:00Z.",
+                            "language": "en",
+                            "proof_points": ["Your purchase may be linked to plant(s) P2; the affected plant set includes P2."],
+                        }
+                    ),
+                },
+            ]
+        elif t == ConfidenceTier.possible_affected.value:
+            few_shots = [
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "tier": "possible_affected",
+                            "recall_id": "RG-4429",
+                            "severity": "high",
+                            "hazard_type": "salmonella",
+                            "as_of_utc": "2026-05-09T00:00:00Z",
+                            "proof_points": ["We could not compute provenance proof from available records."],
+                        }
+                    ),
+                },
+                {
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "subject": "Please verify: Recall RG-4429",
+                            "body": "Your purchase may include a recalled product. If you still have the item, please check the lot code/label (if available) and compare it to the recall notice, and do not consume it if it matches. As of 2026-05-09T00:00:00Z.",
+                            "language": "en",
+                            "proof_points": ["We could not compute provenance proof from available records."],
+                        }
+                    ),
+                },
+            ]
+        elif t == ConfidenceTier.confirmed_unaffected.value:
+            few_shots = [
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "tier": "confirmed_unaffected",
+                            "recall_id": "RG-4429",
+                            "severity": "high",
+                            "hazard_type": "salmonella",
+                            "as_of_utc": "2026-05-09T00:00:00Z",
+                            "proof_points": [
+                                "Your purchase is inferred to come from plant(s) P1, which are not in the affected plant set (P2)."
+                            ],
+                        }
+                    ),
+                },
+                {
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "subject": "Reassurance: you are not affected (Recall RG-4429)",
+                            "body": "You may have heard about this recall. Based on our records, your purchase is from an unaffected source as of 2026-05-09T00:00:00Z. Proof: Your purchase is inferred to come from plant(s) P1, which are not in the affected plant set (P2). We will notify you immediately if the recall scope changes.",
+                            "language": "en",
+                            "proof_points": [
+                                "Your purchase is inferred to come from plant(s) P1, which are not in the affected plant set (P2)."
+                            ],
+                        }
+                    ),
+                },
+            ]
+
         payload: dict[str, Any] = {
             "model": (self.vllm_config.model if self.vllm_config else "Qwen/Qwen3-32B"),
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": json.dumps(user)}],
-            "temperature": 0.2,
+            "messages": [{"role": "system", "content": system_prompt}, *few_shots, {"role": "user", "content": json.dumps(user)}],
+            "temperature": 0.0,
+            "top_p": 1.0,
+            "seed": 42,
             "max_tokens": 900,
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
             "response_format": {"type": "json_schema", "json_schema": {"name": "_LlmDraftOut", "schema": schema}},
         }
         headers: dict[str, str] = {}
