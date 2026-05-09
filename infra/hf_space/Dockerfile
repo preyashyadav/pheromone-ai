@@ -1,3 +1,7 @@
-FROM python:3.11-slim
-WORKDIR /app
+FROM nginx:alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY app/ /usr/share/nginx/html/
+
+EXPOSE 7860
 

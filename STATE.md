@@ -16,7 +16,7 @@ Last commit: (pending)
 - [x] Phase 7: Ops Agent (completed: 2026-05-08T16:10:19Z)
 - [x] Phase 8: Comms Agent (with Reassurance) (completed: 2026-05-08T19:56:57Z)
 - [x] Phase 9: LangGraph orchestration + state persistence (completed: 2026-05-08T22:03:03Z)
-- [ ] Phase 9B: HF Space early-launch stub
+- [ ] Phase 9B: HF Space early-launch stub (implementation done, deployment + UX verification pending: 2026-05-09T22:14:10Z)
 - [ ] Phase 10: Frontend dashboard
 - [ ] Phase 11: Compliance logger + audit report
 - [ ] Phase 12: Real-FDA stress test (20 recalls)

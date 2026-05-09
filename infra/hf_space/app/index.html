@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pheromone — Recall Operating System</title>
+    <meta
+      name="description"
+      content="Pheromone is the recall operating system that lays a pheromone trail through the supply chain so stores can signal selectively to the affected — and reassure the safe."
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="container header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">P</div>
+        <div>
+          <div class="brand__name">Pheromone</div>
+          <div class="brand__tag">Recall Operating System</div>
+        </div>
+      </div>
+      <div class="badge">
+        Built on AMD Instinct MI300X via vLLM + ROCm
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero">
+        <h1>
+          When the FDA recalls food, no one is required to tell the people who bought it.
+        </h1>
+        <p class="hero__stat">
+          <span class="stat">109 million</span> units recalled in 2025.
+          <span class="muted">Pheromone fixes the gap.</span>
+        </p>
+
+        <div class="hero__grid">
+          <div class="card">
+            <h2>What Pheromone does</h2>
+            <ul class="list">
+              <li><b>Probabilistic provenance</b>: no lot codes at checkout required.</li>
+              <li><b>Ingredient-level blast radius</b>: contamination propagates through recipes.</li>
+              <li><b>Reassurance notifications</b>: notify the safe with proof (prevents panic refunds).</li>
+              <li><b>Audit-ready compliance</b>: deterministic logs + human approvals.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h2>Blast radius (static animation)</h2>
+            <div class="graphWrap" role="img" aria-label="Animated blast-radius graph">
+              <svg viewBox="0 0 560 240" class="graph" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
+                    <feMerge>
+                      <feMergeNode in="coloredBlur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <!-- edges -->
+                <path class="edge" d="M110 120 C 180 50, 260 50, 330 120" />
+                <path class="edge" d="M110 120 C 180 190, 260 190, 330 120" />
+                <path class="edge" d="M330 120 C 390 70, 470 70, 520 120" />
+                <path class="edge" d="M330 120 C 390 170, 470 170, 520 120" />
+
+                <!-- nodes -->
+                <g class="node node--source">
+                  <circle cx="110" cy="120" r="28" />
+                  <text x="110" y="126" text-anchor="middle">Lot</text>
+                </g>
+
+                <g class="node node--mid">
+                  <circle cx="330" cy="120" r="34" />
+                  <text x="330" y="116" text-anchor="middle">Ingredient</text>
+                  <text x="330" y="134" text-anchor="middle">Trail</text>
+                </g>
+
+                <g class="node node--affected">
+                  <circle cx="520" cy="120" r="28" />
+                  <text x="520" y="126" text-anchor="middle">Sales</text>
+                </g>
+
+                <!-- pulse ring -->
+                <circle class="pulse" cx="520" cy="120" r="34" />
+              </svg>
+            </div>
+            <p class="muted small">
+              This is a pre-rendered preview. The full dashboard (live agents + telemetry) ships later.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="walkthrough">
+        <div class="walkthrough__head">
+          <h2>Try a sample recall (60 seconds)</h2>
+          <p class="muted">
+            Pre-recorded Salsa-Verde scenario — click through the pipeline stages.
+          </p>
+        </div>
+
+        <div class="card walkthrough__card">
+          <div class="progress">
+            <div class="progress__bar" id="progressBar" style="width: 0%"></div>
+          </div>
+
+          <div class="walkthrough__meta">
+            <div class="pill" id="stepPill">Step 1 / 6</div>
+            <div class="pill pill--soft" id="tierPill">Tier: —</div>
+            <div class="pill pill--soft" id="asOfPill">As of: —</div>
+          </div>
+
+          <h3 id="stepTitle">—</h3>
+          <p id="stepBody" class="walkthrough__body">—</p>
+
+          <div class="split">
+            <div class="panel">
+              <div class="panel__title">What we know</div>
+              <ul id="factsList" class="facts"></ul>
+            </div>
+            <div class="panel">
+              <div class="panel__title">Selective signaling</div>
+              <div id="signalsBox" class="signals"></div>
+            </div>
+          </div>
+
+          <div class="walkthrough__actions">
+            <button id="prevBtn" class="btn btn--ghost" type="button">Back</button>
+            <button id="nextBtn" class="btn" type="button">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="links">
+        <div class="card">
+          <h2>Links</h2>
+          <ul class="list">
+            <li>
+              GitHub: <a id="githubLink" href="https://github.com/" target="_blank" rel="noreferrer">github.com/&lt;org&gt;/pheromone</a>
+            </li>
+            <li>
+              Build-in-public thread: <a id="xLink" href="https://x.com/" target="_blank" rel="noreferrer">x.com/&lt;handle&gt;</a>
+            </li>
+            <li>
+              Contact: <a id="contactLink" href="mailto:hello@example.com">hello@example.com</a>
+            </li>
+          </ul>
+          <p class="muted small">
+            Replace the placeholder links above in <code>infra/hf_space/app/index.html</code> before deploying.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="container footer">
+      <div class="footer__cta">
+        <h2>Like this Space if you’d want this for your local grocery store</h2>
+        <p class="muted">
+          Likes help this project win the HF Special Prize and get to production.
+        </p>
+      </div>
+      <div class="footer__note">
+        Demo mode only — no real notifications are ever sent.
+      </div>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
+
