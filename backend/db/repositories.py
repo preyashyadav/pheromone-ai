@@ -208,6 +208,157 @@ class CustomerRepository(BaseRepository):
 
 
 class RecallRepository(BaseRepository):
+    def insert_compliance_event(
+        self,
+        *,
+        recall_case_id: uuid.UUID,
+        event_type: str,
+        message: str,
+        payload: dict[str, Any] | None = None,
+    ) -> uuid.UUID:
+        with self.session() as s:
+            row = ComplianceLog(
+                recall_case_id=recall_case_id,
+                event_type=str(event_type),
+                message=str(message),
+                payload=payload or {},
+            )
+            s.add(row)
+            s.commit()
+            return row.id
+
+    def list_compliance_events(self, *, recall_case_id: uuid.UUID, limit: int = 250) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 1000))
+        with self.session() as s:
+            rows = (
+                s.execute(
+                    select(ComplianceLog.event_type, ComplianceLog.message, ComplianceLog.payload, ComplianceLog.created_at)
+                    .where(ComplianceLog.recall_case_id == recall_case_id)
+                    .order_by(ComplianceLog.created_at.desc())
+                    .limit(limit)
+                )
+                .all()
+            )
+        out: list[dict[str, Any]] = []
+        for event_type, message, payload, created_at in rows:
+            out.append(
+                {
+                    "event_type": str(event_type),
+                    "message": str(message),
+                    "payload": payload if isinstance(payload, dict) else {},
+                    "created_at": created_at,
+                }
+            )
+        # Return chronological for timeline UIs.
+        out.reverse()
+        return out
+
+    def list_recall_cases_minimal(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        limit = max(1, min(int(limit), 200))
+        with self.session() as s:
+            rows = (
+                s.execute(
+                    select(RecallCase.id, RecallCase.state, RecallCase.source_type, RecallCase.source_details, RecallCase.updated_at)
+                    .order_by(RecallCase.updated_at.desc())
+                    .limit(limit)
+                )
+                .all()
+            )
+            ids = [uuid.UUID(str(r[0])) for r in rows]
+            if ids:
+                spec_rows = s.execute(
+                    select(RecallSpecRow.recall_case_id, RecallSpecRow.spec).where(RecallSpecRow.recall_case_id.in_(ids))
+                ).all()
+            else:
+                spec_rows = []
+            specs = {uuid.UUID(str(rid)): (spec if isinstance(spec, dict) else None) for rid, spec in spec_rows}
+
+        out: list[dict[str, Any]] = []
+        for rid, state, source_type, source_details, updated_at in rows:
+            rc_id = uuid.UUID(str(rid))
+            spec = specs.get(rc_id) or {}
+            out.append(
+                {
+                    "recall_case_id": rc_id,
+                    "state": str(getattr(state, "value", state)),
+                    "source_type": source_type,
+                    "source_details": source_details if isinstance(source_details, dict) else {},
+                    "updated_at": updated_at,
+                    "severity": (spec.get("severity") if isinstance(spec, dict) else None),
+                    "hazard_type": (spec.get("hazard_type") if isinstance(spec, dict) else None),
+                    "recall_id": (spec.get("recall_id") if isinstance(spec, dict) else None),
+                }
+            )
+        return out
+
+    def list_employee_tasks_minimal(self, *, recall_case_id: uuid.UUID) -> list[dict[str, Any]]:
+        with self.session() as s:
+            rows = (
+                s.execute(
+                    select(EmployeeTask.id, EmployeeTask.task_type, EmployeeTask.payload, EmployeeTask.status, EmployeeTask.created_at)
+                    .where(EmployeeTask.recall_case_id == recall_case_id)
+                    .order_by(EmployeeTask.created_at.asc())
+                )
+                .all()
+            )
+        out: list[dict[str, Any]] = []
+        for tid, task_type, payload, status, created_at in rows:
+            out.append(
+                {
+                    "id": uuid.UUID(str(tid)),
+                    "task_type": str(task_type),
+                    "payload": payload if isinstance(payload, dict) else {},
+                    "status": str(status),
+                    "created_at": created_at,
+                }
+            )
+        return out
+
+    def list_notification_drafts_minimal(self, *, recall_case_id: uuid.UUID) -> list[dict[str, Any]]:
+        with self.session() as s:
+            rows = (
+                s.execute(
+                    select(
+                        NotificationDraft.id,
+                        NotificationDraft.customer_id,
+                        NotificationDraft.channel,
+                        NotificationDraft.confidence_tier,
+                        NotificationDraft.draft,
+                        NotificationDraft.created_at,
+                    )
+                    .where(NotificationDraft.recall_case_id == recall_case_id)
+                    .order_by(NotificationDraft.created_at.asc())
+                )
+                .all()
+            )
+        out: list[dict[str, Any]] = []
+        for did, cust_id, channel, tier, draft, created_at in rows:
+            out.append(
+                {
+                    "id": uuid.UUID(str(did)),
+                    "customer_id": (uuid.UUID(str(cust_id)) if cust_id is not None else None),
+                    "channel": str(channel),
+                    "confidence_tier": str(tier),
+                    "draft": draft if isinstance(draft, dict) else {},
+                    "created_at": created_at,
+                }
+            )
+        return out
+
+    def insert_approval(self, *, recall_case_id: uuid.UUID, approved_by: str, action: str) -> uuid.UUID:
+        with self.session() as s:
+            row = Approval(recall_case_id=recall_case_id, approved_by=str(approved_by), action=str(action))
+            s.add(row)
+            s.commit()
+            return row.id
+
+    def count_approvals(self, *, recall_case_id: uuid.UUID, action_prefix: str | None = None) -> int:
+        with self.session() as s:
+            q = select(func.count()).select_from(Approval).where(Approval.recall_case_id == recall_case_id)
+            if action_prefix:
+                q = q.where(Approval.action.like(f"{action_prefix}%"))
+            return int(s.execute(q).scalar_one())
+
     def create_recall_case(self) -> uuid.UUID:
         with self.session() as s:
             rc = RecallCase()

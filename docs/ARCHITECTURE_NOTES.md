@@ -107,3 +107,26 @@ Measured end-to-end (Intake→Trace→Match→Ops) using the deterministic LLM m
 ## Key Principle
 
 "All risk is computed, never assumed."
+
+## Phase 10 Decisions (Frontend Dashboard + Telemetry)
+
+### 1) Frontend stack + data contract
+- Next.js 14 (App Router) + TypeScript strict + Tailwind (dark by default).
+- TanStack Query is the single data-fetching layer; all calls go through a typed client (`frontend/lib/api.ts`).
+- Live updates use SSE from `GET /recalls/{id}/stream`; the UI invalidates queries on each SSE message (no bespoke websocket layer).
+
+### 2) Telemetry strategy (works with or without the AMD droplet)
+- Agent telemetry endpoint: `GET /api/telemetry/agents`.
+  - Source of truth is Postgres `compliance_log` rows with `event_type='agent_metrics'`.
+  - Orchestration writes one `agent_metrics` row per agent completion (tokens in/out + latency).
+  - Token counts prefer OpenAI-style `usage` when present; otherwise fall back to a deterministic chars/4 heuristic.
+- GPU telemetry endpoint: `GET /api/telemetry/gpu`.
+  - If `PHEROMONE_GPU_ENDPOINT` is set, the backend attempts a real fetch with a 2s timeout and caches for 5s.
+  - On timeout/error/unset endpoint, return realistic mock values (`memory_pct≈91`, `compute_pct≈0 idle / ≈90 busy`).
+  - The dashboard must never lose the “AMD story” badge/strip just because the droplet is down.
+
+### 3) Demo seed approach (Salsa-Verde must be viewable immediately)
+- Script `scripts/seed_demo_recall.py` runs the Salsa-Verde data generator + executes the full pipeline once, then auto-approves to persist a fully-populated closed recall for the dashboard demo.
+
+### 4) Phase 11 scope cut (submission-time optimization)
+- PDF generation is explicitly cut; the dashboard’s Compliance tab shows the existing append-only event log timeline (no reportlab/PDF workflows).

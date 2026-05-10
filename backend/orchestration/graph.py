@@ -36,6 +36,7 @@ from backend.db.repositories import (
 from backend.engine.recall_graph import BlastRadius
 from backend.engine.recall_graph import StoreTransactionWindow
 from backend.orchestration.state import RecallLifecycleState, validate_transition
+from backend.db.db_url import DEFAULT_DATABASE_URL, get_database_url
 
 
 class GraphState(TypedDict, total=False):
@@ -72,6 +73,66 @@ def _overall_confidence(spec: IntakeRecallSpec) -> float:
     if not vals:
         return 0.0
     return float(min(vals))
+
+
+def _approx_tokens(obj: Any) -> int:
+    """
+    Dependency-free token approximation for UI telemetry. Prefer OpenAI-style `usage`
+    when available; otherwise fall back to a chars/4 heuristic.
+    """
+    try:
+        s = obj if isinstance(obj, str) else json.dumps(obj, default=str)
+    except Exception:
+        s = str(obj)
+    return max(1, int(len(s) / 4))
+
+
+def _usage_tokens(usage: Any) -> tuple[int | None, int | None]:
+    if not isinstance(usage, dict):
+        return None, None
+    pt = usage.get("prompt_tokens")
+    ct = usage.get("completion_tokens")
+    try:
+        pt_i = int(pt) if pt is not None else None
+    except Exception:
+        pt_i = None
+    try:
+        ct_i = int(ct) if ct is not None else None
+    except Exception:
+        ct_i = None
+    return pt_i, ct_i
+
+
+def _log_agent_metrics(
+    *,
+    deps: OrchestrationDeps,
+    recall_case_id: uuid.UUID,
+    agent: str,
+    state: str,
+    started_at_s: float,
+    input_obj: Any | None = None,
+    output_obj: Any | None = None,
+    usage: Any | None = None,
+) -> None:
+    latency_ms = int(max(0.0, (time.time() - started_at_s) * 1000.0))
+    prompt_tokens, completion_tokens = _usage_tokens(usage)
+    if prompt_tokens is None and input_obj is not None:
+        prompt_tokens = _approx_tokens(input_obj)
+    if completion_tokens is None and output_obj is not None:
+        completion_tokens = _approx_tokens(output_obj)
+    deps.repos.recalls.insert_compliance_event(
+        recall_case_id=recall_case_id,
+        event_type="agent_metrics",
+        message=f"{agent}:{state}",
+        payload={
+            "agent": agent,
+            "state": state,
+            "latency_ms": latency_ms,
+            "tokens_in": int(prompt_tokens or 0),
+            "tokens_out": int(completion_tokens or 0),
+            "ts": _now_utc().isoformat().replace("+00:00", "Z"),
+        },
+    )
 
 
 class EventBroker:
@@ -153,10 +214,12 @@ def _set_case_state(repos: RecallRepository, recall_case_id: uuid.UUID, next_sta
 
 def _intake_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     recall_case_id = _as_uuid(state["recall_case_id"])
+    t0 = time.time()
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.intake_running)
 
     if state.get("provided_spec"):
-        spec = IntakeRecallSpec.model_validate(cast(dict[str, Any], state["provided_spec"]))
+        provided = cast(dict[str, Any], state["provided_spec"])
+        spec = IntakeRecallSpec.model_validate(provided)
     else:
         # In Phase 9 tests we pass a structured spec, but keep a fallback for real usage.
         raw = deps.repos.recalls.get_recall_spec(recall_case_id=recall_case_id) or {}
@@ -164,6 +227,16 @@ def _intake_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
 
     deps.repos.recalls.upsert_recall_spec(recall_case_id=recall_case_id, spec=spec.model_dump(mode="json"))
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.intake_parsed)
+    _log_agent_metrics(
+        deps=deps,
+        recall_case_id=recall_case_id,
+        agent="intake",
+        state="completed",
+        started_at_s=t0,
+        input_obj=(state.get("provided_spec") or {}),
+        output_obj=spec.model_dump(mode="json"),
+        usage=getattr(deps.intake_agent, "last_llm_usage", None),
+    )
     return {"recall_spec": spec.model_dump(mode="json")}
 
 
@@ -192,6 +265,7 @@ def _scope_review_node(state: GraphState, deps: OrchestrationDeps) -> GraphState
 
 def _trace_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     recall_case_id = _as_uuid(state["recall_case_id"])
+    t0 = time.time()
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.trace_running)
 
     spec_d = state.get("recall_spec") or deps.repos.recalls.get_recall_spec(recall_case_id=recall_case_id) or {}
@@ -208,11 +282,21 @@ def _trace_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
 
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.trace_completed)
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.match_queued)
+    _log_agent_metrics(
+        deps=deps,
+        recall_case_id=recall_case_id,
+        agent="trace",
+        state="completed",
+        started_at_s=t0,
+        input_obj=spec_d,
+        output_obj=blast.model_dump(mode="json"),
+    )
     return {"blast_radius": blast.model_dump(mode="json")}
 
 
 def _match_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     recall_case_id = _as_uuid(state["recall_case_id"])
+    t0 = time.time()
     rc = deps.repos.recalls.get_recall_case(recall_case_id)
     if rc is None:
         raise KeyError("recall_case not found")
@@ -263,13 +347,33 @@ def _match_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     scored = deps.match_agent.score_transactions(blast, spec, recall_case_id=recall_case_id)
     tx_ids_out = [str(s.transaction_id) for s in scored if getattr(s, "transaction_id", None) is not None]
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.match_completed)
+    _log_agent_metrics(
+        deps=deps,
+        recall_case_id=recall_case_id,
+        agent="match",
+        state="completed",
+        started_at_s=t0,
+        input_obj={"blast_radius": (blast_d or {}), "override_ids": override_ids},
+        output_obj={"scored_count": len(tx_ids_out)},
+    )
     return {"scored_transaction_ids": tx_ids_out}
 
 
 def _ops_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     recall_case_id = _as_uuid(state["recall_case_id"])
     if deps.repos.recalls.count_employee_tasks(recall_case_id=recall_case_id) > 0:
+        _log_agent_metrics(
+            deps=deps,
+            recall_case_id=recall_case_id,
+            agent="ops",
+            state="cached",
+            started_at_s=time.time(),
+            input_obj={},
+            output_obj={"tasks": "already_present"},
+            usage=getattr(deps.ops_agent, "last_llm_usage", None),
+        )
         return {"ops_done": True}
+    t0 = time.time()
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.ops_running)
 
     blast_d = state.get("blast_radius") or deps.repos.recalls.get_latest_blast_radius_snapshot(
@@ -294,13 +398,34 @@ def _ops_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
         )
 
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.ops_completed)
+    _log_agent_metrics(
+        deps=deps,
+        recall_case_id=recall_case_id,
+        agent="ops",
+        state="completed",
+        started_at_s=t0,
+        input_obj={"blast_radius": (blast_d or {}), "affected_stores": [str(x.store_id) for x in blast.affected_stores]},
+        output_obj={"tasks_count": deps.repos.recalls.count_employee_tasks(recall_case_id=recall_case_id)},
+        usage=getattr(deps.ops_agent, "last_llm_usage", None),
+    )
     return {"ops_done": True}
 
 
 def _comms_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     recall_case_id = _as_uuid(state["recall_case_id"])
     if deps.repos.recalls.count_notification_drafts(recall_case_id=recall_case_id) > 0:
+        _log_agent_metrics(
+            deps=deps,
+            recall_case_id=recall_case_id,
+            agent="comms",
+            state="cached",
+            started_at_s=time.time(),
+            input_obj={},
+            output_obj={"drafts": "already_present"},
+            usage=getattr(deps.comms_agent, "last_llm_usage", None),
+        )
         return {"comms_done": True}
+    t0 = time.time()
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.comms_running)
 
     spec_d = state.get("recall_spec") or deps.repos.recalls.get_recall_spec(recall_case_id=recall_case_id) or {}
@@ -325,11 +450,22 @@ def _comms_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     deps.comms_agent.draft_notifications(scored_like, spec, recall_case_id=recall_case_id, now_utc=_now_utc())
 
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.comms_completed)
+    _log_agent_metrics(
+        deps=deps,
+        recall_case_id=recall_case_id,
+        agent="comms",
+        state="completed",
+        started_at_s=t0,
+        input_obj={"scored_count": len(scored_like)},
+        output_obj={"drafts_count": deps.repos.recalls.count_notification_drafts(recall_case_id=recall_case_id)},
+        usage=getattr(deps.comms_agent, "last_llm_usage", None),
+    )
     return {"comms_done": True}
 
 
 def _manager_approval_node(state: GraphState, deps: OrchestrationDeps) -> GraphState:
     recall_case_id = _as_uuid(state["recall_case_id"])
+    t0 = time.time()
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.awaiting_manager_approval)
 
     # Barrier: only pause when both parallel branches have finished.
@@ -339,6 +475,15 @@ def _manager_approval_node(state: GraphState, deps: OrchestrationDeps) -> GraphS
     decision = interrupt({"type": "manager_approval_required", "recall_case_id": str(recall_case_id)})
     # Decision captured; close (approve/reject is handled at higher layers in later phases).
     _set_case_state(deps.repos.recalls, recall_case_id, RecallLifecycleState.closed)
+    _log_agent_metrics(
+        deps=deps,
+        recall_case_id=recall_case_id,
+        agent="manager_approval",
+        state="completed",
+        started_at_s=t0,
+        input_obj={"decision": bool(decision)},
+        output_obj={},
+    )
     return {"manager_decision": str(decision)}
 
 
@@ -367,9 +512,9 @@ def build_graph(*, deps: OrchestrationDeps) -> StateGraph:
 
 
 def _db_url() -> str:
-    db_url = (os.environ.get("DATABASE_URL") or "").strip()
-    if not db_url:
-        raise RuntimeError("DATABASE_URL is not set")
+    db_url = get_database_url()
+    if db_url == DEFAULT_DATABASE_URL and not (os.environ.get("DATABASE_URL") or "").strip():
+        print(f"[db] No DATABASE_URL set; using default {DEFAULT_DATABASE_URL}")
     return db_url
 
 

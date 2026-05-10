@@ -1,6 +1,6 @@
 # Pheromone Build State
 
-Last updated: 2026-05-09T15:41:13Z
+Last updated: 2026-05-09T23:46:46Z
 Repo: (local)
 Branch: (local)
 Last commit: (pending)
@@ -17,8 +17,8 @@ Last commit: (pending)
 - [x] Phase 8: Comms Agent (with Reassurance) (completed: 2026-05-08T19:56:57Z)
 - [x] Phase 9: LangGraph orchestration + state persistence (completed: 2026-05-08T22:03:03Z)
 - [ ] Phase 9B: HF Space early-launch stub (implementation done, deployment + UX verification pending: 2026-05-09T22:14:10Z)
-- [ ] Phase 10: Frontend dashboard
-- [ ] Phase 11: Compliance logger + audit report
+- [ ] Phase 10: Frontend dashboard (implementation done, user-side visual verification pending: 2026-05-09T23:32:54Z)
+- [ ] Phase 11: CUT (PDF generator removed; dashboard shows event log only) (decision logged: 2026-05-09T23:32:54Z)
 - [ ] Phase 12: Real-FDA stress test (20 recalls)
 - [ ] Phase 13: HF Space full live upgrade
 - [ ] Phase 14: Demo polish + recording + final Ship-It blast
@@ -29,6 +29,7 @@ Last commit: (pending)
 ## Known issues / TODOs
 - Phase 0: AMD Developer Cloud + vLLM endpoint verification pending (requires manual provisioning).
 - Phase 0/4: Phase 4 real-Qwen3 validation completed (2026-05-09T15:41:13Z); keep `PHEROMONE_LLM_MODE=mock` for fast dev iteration.
+- Phase 10: Local dashboard dev convenience: seed script is now self-bootstrapping + `DATABASE_URL` defaults to local Postgres when unset (2026-05-09T23:46:46Z).
 
 ## Test case results (latest run per phase)
 - Phase 0:

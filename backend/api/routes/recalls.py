@@ -28,15 +28,17 @@ from backend.orchestration.graph import (
     resume_from_interrupt,
     score_scope_delta,
 )
+from backend.db.db_url import DEFAULT_DATABASE_URL, get_database_url
 
 
 router = APIRouter(prefix="/recalls", tags=["recalls"])
 
 
 def _db_url() -> str:
-    url = (os.environ.get("DATABASE_URL") or "").strip()
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
+    # Dashboard/local dev convenience: default to a predictable local Postgres when env is unset.
+    url = get_database_url()
+    if url == DEFAULT_DATABASE_URL and not (os.environ.get("DATABASE_URL") or "").strip():
+        print(f"[db] No DATABASE_URL set; using default {DEFAULT_DATABASE_URL}")
     return url
 
 

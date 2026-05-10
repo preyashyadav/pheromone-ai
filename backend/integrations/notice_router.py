@@ -78,9 +78,11 @@ def submit_internal_qa_issue(
     repos: Repositories | None = None,
 ) -> str:
     if repos is None:
-        db_url = os.environ.get("DATABASE_URL")
-        if not db_url:
-            raise RuntimeError("DATABASE_URL is not set")
+        from backend.db.db_url import DEFAULT_DATABASE_URL, get_database_url
+
+        db_url = get_database_url()
+        if db_url == DEFAULT_DATABASE_URL and not (os.environ.get("DATABASE_URL") or "").strip():
+            print(f"[db] No DATABASE_URL set; using default {DEFAULT_DATABASE_URL}")
         engine = create_engine(db_url, pool_pre_ping=True)
         session_factory = make_session_factory(engine)
         repos = Repositories(

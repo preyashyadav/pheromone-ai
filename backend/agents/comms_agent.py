@@ -134,6 +134,7 @@ class CommsAgent:
     def __post_init__(self) -> None:
         object.__setattr__(self, "_recalls_repo", RecallRepository(self.session_factory))
         object.__setattr__(self, "_composition", InventoryCompositionEngine(self.session_factory))
+        object.__setattr__(self, "last_llm_usage", None)
         if self.vllm_config is not None:
             client = self.http_client or httpx.Client(
                 timeout=self.vllm_config.timeout_s, base_url=self.vllm_config.base_url
@@ -848,6 +849,8 @@ class CommsAgent:
             resp = self._client.post("/v1/chat/completions", json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
+            usage = data.get("usage")
+            object.__setattr__(self, "last_llm_usage", usage if isinstance(usage, dict) else None)
             content = data.get("choices", [{}])[0].get("message", {}).get("content")
             if not isinstance(content, str):
                 return None

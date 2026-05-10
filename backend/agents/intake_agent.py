@@ -542,6 +542,7 @@ class IntakeAgent:
     def __init__(self, config: VllmClientConfig, *, client: httpx.Client | None = None) -> None:
         self._config = config
         self._client = client or httpx.Client(timeout=config.timeout_s, base_url=config.base_url)
+        self.last_llm_usage: dict[str, Any] | None = None
 
     def parse(self, raw_notice: Any, *, related_notices: Iterable[Any] | None = None) -> RecallSpec:
         baseline = _baseline_extract(raw_notice)
@@ -886,6 +887,8 @@ class IntakeAgent:
             resp = self._client.post("/v1/chat/completions", json=payload, headers=headers)
             resp.raise_for_status()
             data = resp.json()
+            usage = data.get("usage")
+            self.last_llm_usage = usage if isinstance(usage, dict) else None
             content = (
                 data.get("choices", [{}])[0]
                 .get("message", {})
