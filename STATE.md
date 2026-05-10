@@ -30,6 +30,7 @@ Last commit: (pending)
 - Phase 0: AMD Developer Cloud + vLLM endpoint verification pending (requires manual provisioning).
 - Phase 0/4: Phase 4 real-Qwen3 validation completed (2026-05-09T15:41:13Z); keep `PHEROMONE_LLM_MODE=mock` for fast dev iteration.
 - Phase 10: Local dashboard dev convenience: seed script is now self-bootstrapping + `DATABASE_URL` defaults to local Postgres when unset (2026-05-09T23:46:46Z).
+- CORS middleware added to backend for dashboard local development (Phase 10 polish).
 
 ## Test case results (latest run per phase)
 - Phase 0:
