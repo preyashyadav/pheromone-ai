@@ -6,66 +6,69 @@
     <title>Pheromone — Recall Operating System</title>
     <meta
       name="description"
-      content="Pheromone is the recall operating system that lays a pheromone trail through the supply chain so stores can signal selectively to the affected — and reassure the safe."
+      content="Pheromone ingests recall notices, traces affected products through the supply chain, matches impacted transactions, and produces customer-safe workflows and audit-ready reporting."
     />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header class="container header">
-      <div class="brand">
-        <div class="logo" aria-hidden="true">P</div>
-        <div>
-          <div class="brand__name">Pheromone</div>
-          <div class="brand__tag">Recall Operating System</div>
+    <header class="header">
+      <div class="container header__inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">P</div>
+          <div>
+            <div class="brand__name">Pheromone</div>
+            <div class="brand__tag">Recall Operating System</div>
+          </div>
         </div>
-      </div>
-      <div class="badge">
-        Built on AMD Instinct MI300X via vLLM + ROCm
+        <div class="header__right">
+          <div class="badge">Qwen3-32B · vLLM · ROCm 7 · AMD Instinct MI300X</div>
+          <div class="header__actions">
+            <a class="btn btn--primary" id="demoLink" href="#" target="_blank" rel="noreferrer">View Demo</a>
+            <a class="btn btn--secondary" id="githubLinkTop" href="https://github.com/" target="_blank" rel="noreferrer"
+              >GitHub</a
+            >
+          </div>
+        </div>
       </div>
     </header>
 
     <main class="container">
       <section class="hero">
-        <h1>
-          When the FDA recalls food, no one is required to tell the people who bought it.
-        </h1>
-        <p class="hero__stat">
-          <span class="stat">109 million</span> units recalled in 2025.
-          <span class="muted">Pheromone fixes the gap.</span>
+        <div class="eyebrow">AI Recall Operating System</div>
+        <h1>Trace recalls. Notify the affected. Reassure the safe.</h1>
+        <p class="hero__sub">
+          Pheromone is a multi-agent recall system that ingests recall notices, traces affected products through the
+          supply chain, matches likely impacted transactions, and generates customer-safe communication workflows and
+          audit-ready reporting.
         </p>
 
         <div class="hero__grid">
           <div class="card">
-            <h2>What Pheromone does</h2>
+            <h2>What it does</h2>
             <ul class="list">
-              <li><b>Probabilistic provenance</b>: no lot codes at checkout required.</li>
-              <li><b>Ingredient-level blast radius</b>: contamination propagates through recipes.</li>
-              <li><b>Reassurance notifications</b>: notify the safe with proof (prevents panic refunds).</li>
-              <li><b>Audit-ready compliance</b>: deterministic logs + human approvals.</li>
+              <li><b>Trace affected products</b> through the supply chain graph.</li>
+              <li><b>Identify affected transactions</b> with confidence tiers.</li>
+              <li><b>Notify impacted customers</b> with customer-safe drafts.</li>
+              <li><b>Reassure safe customers</b> using provenance evidence.</li>
+              <li><b>Generate audit-ready recall reports</b> and a compliance event log.</li>
             </ul>
+            <div class="ctaRow">
+              <a class="btn btn--primary" id="demoLink2" href="#" target="_blank" rel="noreferrer">View Demo</a>
+              <a class="btn btn--secondary" id="hfLink" href="https://huggingface.co/spaces/" target="_blank" rel="noreferrer"
+                >Hugging Face</a
+              >
+            </div>
           </div>
 
           <div class="card">
-            <h2>Blast radius (static animation)</h2>
-            <div class="graphWrap" role="img" aria-label="Animated blast-radius graph">
+            <h2>Trace evidence (preview)</h2>
+            <div class="graphWrap" role="img" aria-label="Supply-chain trace preview">
               <svg viewBox="0 0 560 240" class="graph" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
-                    <feMerge>
-                      <feMergeNode in="coloredBlur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-
-                <!-- edges -->
                 <path class="edge" d="M110 120 C 180 50, 260 50, 330 120" />
                 <path class="edge" d="M110 120 C 180 190, 260 190, 330 120" />
                 <path class="edge" d="M330 120 C 390 70, 470 70, 520 120" />
                 <path class="edge" d="M330 120 C 390 170, 470 170, 520 120" />
 
-                <!-- nodes -->
                 <g class="node node--source">
                   <circle cx="110" cy="120" r="28" />
                   <text x="110" y="126" text-anchor="middle">Lot</text>
@@ -73,32 +76,104 @@
 
                 <g class="node node--mid">
                   <circle cx="330" cy="120" r="34" />
-                  <text x="330" y="116" text-anchor="middle">Ingredient</text>
-                  <text x="330" y="134" text-anchor="middle">Trail</text>
+                  <text x="330" y="116" text-anchor="middle">Trace</text>
+                  <text x="330" y="134" text-anchor="middle">Graph</text>
                 </g>
 
                 <g class="node node--affected">
                   <circle cx="520" cy="120" r="28" />
                   <text x="520" y="126" text-anchor="middle">Sales</text>
                 </g>
-
-                <!-- pulse ring -->
-                <circle class="pulse" cx="520" cy="120" r="34" />
               </svg>
             </div>
-            <p class="muted small">
-              This is a pre-rendered preview. The full dashboard (live agents + telemetry) ships later.
-            </p>
+            <p class="muted small">This Space serves a static walkthrough UI. The full dashboard runs in the main app.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <h2>The operational problem</h2>
+          <p class="muted">
+            Recalls happen, but purchase-level notification is often inconsistent. Customers don’t know whether they
+            bought the recalled item, and unaffected customers may panic and discard safe food.
+          </p>
+        </div>
+        <div class="grid4">
+          <div class="card">
+            <h3>Unclear exposure</h3>
+            <p class="muted">Customers often can’t map recall scope to what they actually purchased.</p>
+          </div>
+          <div class="card">
+            <h3>Unnecessary refunds</h3>
+            <p class="muted">Broad alerts create waste, refunds, and support load for safe customers.</p>
+          </div>
+          <div class="card">
+            <h3>Operational coordination</h3>
+            <p class="muted">Stores need a coordinated workflow from intake through pulls, comms, and reporting.</p>
+          </div>
+          <div class="card">
+            <h3>Audit pressure</h3>
+            <p class="muted">Teams need a defensible record of trace evidence, approvals, and actions.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <h2>Workflow</h2>
+          <p class="muted">A recall runbook from intake to communication, backed by trace evidence.</p>
+        </div>
+        <div class="workflow">
+          <div class="step">
+            <div class="step__n">1</div>
+            <div>
+              <div class="step__t">Intake recall notice</div>
+              <div class="muted">Parse into a structured RecallSpec contract.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__n">2</div>
+            <div>
+              <div class="step__t">Trace supply-chain graph</div>
+              <div class="muted">Traverse suppliers, lots, and shipments to determine exposure paths.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__n">3</div>
+            <div>
+              <div class="step__t">Match transactions</div>
+              <div class="muted">Identify impacted purchases and confidence.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__n">4</div>
+            <div>
+              <div class="step__t">Classify customer risk</div>
+              <div class="muted">Affected / safe / unknown with evidence.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__n">5</div>
+            <div>
+              <div class="step__t">Generate notifications</div>
+              <div class="muted">Customer-safe drafts + outreach tasks.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__n">6</div>
+            <div>
+              <div class="step__t">Produce compliance report</div>
+              <div class="muted">Audit-ready timeline and trace artifacts.</div>
+            </div>
           </div>
         </div>
       </section>
 
       <section class="walkthrough">
         <div class="walkthrough__head">
-          <h2>Try a sample recall (60 seconds)</h2>
-          <p class="muted">
-            Pre-recorded Salsa-Verde scenario — click through the pipeline stages.
-          </p>
+          <h2>Sample recall walkthrough</h2>
+          <p class="muted">A static scenario UI: step through intake → trace → match → comms → approvals.</p>
         </div>
 
         <div class="card walkthrough__card">
@@ -108,7 +183,7 @@
 
           <div class="walkthrough__meta">
             <div class="pill" id="stepPill">Step 1 / 6</div>
-            <div class="pill pill--soft" id="tierPill">Tier: —</div>
+            <div class="pill pill--soft" id="tierPill">State: —</div>
             <div class="pill pill--soft" id="asOfPill">As of: —</div>
           </div>
 
@@ -121,15 +196,131 @@
               <ul id="factsList" class="facts"></ul>
             </div>
             <div class="panel">
-              <div class="panel__title">Selective signaling</div>
+              <div class="panel__title">Operational output</div>
               <div id="signalsBox" class="signals"></div>
             </div>
           </div>
 
           <div class="walkthrough__actions">
-            <button id="prevBtn" class="btn btn--ghost" type="button">Back</button>
-            <button id="nextBtn" class="btn" type="button">Next</button>
+            <button id="prevBtn" class="btn btn--secondary" type="button">Back</button>
+            <button id="nextBtn" class="btn btn--primary" type="button">Next</button>
           </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <h2>Agents</h2>
+          <p class="muted">Five agents with clear contracts: input → responsibility → output.</p>
+        </div>
+        <div class="agents">
+          <div class="agent">
+            <div class="agent__name">Intake Agent</div>
+            <div class="agent__grid">
+              <div><div class="agent__k">Input</div><div class="agent__v">Recall notice text</div></div>
+              <div><div class="agent__k">Responsibility</div><div class="agent__v">Extract and normalize fields into RecallSpec.</div></div>
+              <div><div class="agent__k">Output</div><div class="agent__v">RecallSpec JSON + parsing trace</div></div>
+            </div>
+          </div>
+          <div class="agent">
+            <div class="agent__name">Trace Agent</div>
+            <div class="agent__grid">
+              <div><div class="agent__k">Input</div><div class="agent__v">RecallSpec + supply-chain entities</div></div>
+              <div><div class="agent__k">Responsibility</div><div class="agent__v">Traverse lots/shipments to build exposure paths.</div></div>
+              <div><div class="agent__k">Output</div><div class="agent__v">Subgraph + affected lots</div></div>
+            </div>
+          </div>
+          <div class="agent">
+            <div class="agent__name">Match Agent</div>
+            <div class="agent__grid">
+              <div><div class="agent__k">Input</div><div class="agent__v">Affected lots + transactions</div></div>
+              <div><div class="agent__k">Responsibility</div><div class="agent__v">Join evidence to purchases and compute confidence.</div></div>
+              <div><div class="agent__k">Output</div><div class="agent__v">Ranked impacted transactions</div></div>
+            </div>
+          </div>
+          <div class="agent">
+            <div class="agent__name">Ops Agent</div>
+            <div class="agent__grid">
+              <div><div class="agent__k">Input</div><div class="agent__v">Impact set + store context</div></div>
+              <div><div class="agent__k">Responsibility</div><div class="agent__v">Generate pulls/quarantine/POS tasks and priorities.</div></div>
+              <div><div class="agent__k">Output</div><div class="agent__v">Task list + priority</div></div>
+            </div>
+          </div>
+          <div class="agent">
+            <div class="agent__name">Comms Agent</div>
+            <div class="agent__grid">
+              <div><div class="agent__k">Input</div><div class="agent__v">Risk tier + evidence</div></div>
+              <div><div class="agent__k">Responsibility</div><div class="agent__v">Draft customer-safe notifications with provenance evidence.</div></div>
+              <div><div class="agent__k">Output</div><div class="agent__v">Message drafts + channel plan</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <h2>Reassurance</h2>
+          <p class="muted">
+            Most recall systems only notify affected customers. Pheromone also reassures customers who are not affected,
+            using provenance evidence from the supply-chain graph.
+          </p>
+        </div>
+        <div class="grid2">
+          <div class="card outcome outcome--affected">
+            <div class="outcome__head">
+              <div class="outcome__title">Affected</div>
+              <div class="tag tag--amber">Your purchase may be impacted.</div>
+            </div>
+            <p class="muted">We traced your purchase to an exposure path (lot + shipment evidence). Next steps included.</p>
+            <ul class="ticks">
+              <li>Clear risk tier</li>
+              <li>Evidence-backed reasoning</li>
+              <li>Actionable next steps</li>
+            </ul>
+          </div>
+          <div class="card outcome outcome--safe">
+            <div class="outcome__head">
+              <div class="outcome__title">Safe</div>
+              <div class="tag tag--green">Your purchase was traced to a clean batch.</div>
+            </div>
+            <p class="muted">We can show non-exposure based on supply-chain provenance, reducing panic and refunds.</p>
+            <ul class="ticks">
+              <li>Provenance proof</li>
+              <li>Lower support volume</li>
+              <li>Trust-preserving messaging</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <h2>AMD / GPU-backed inference</h2>
+          <p class="muted">
+            The demo architecture runs a full multi-agent stack with large-model inference so the workflow is realistic
+            end-to-end.
+          </p>
+        </div>
+        <div class="specs">
+          <div class="spec"><div class="spec__k">Model</div><div class="spec__v">Qwen3-32B</div></div>
+          <div class="spec"><div class="spec__k">Serving</div><div class="spec__v">vLLM</div></div>
+          <div class="spec"><div class="spec__k">Driver stack</div><div class="spec__v">ROCm 7</div></div>
+          <div class="spec"><div class="spec__k">GPU</div><div class="spec__v">AMD Instinct MI300X</div></div>
+          <div class="spec"><div class="spec__k">Memory</div><div class="spec__v">192GB HBM3</div></div>
+          <div class="spec"><div class="spec__k">Why it matters</div><div class="spec__v">Multi-agent context retention + high-throughput inference</div></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__head">
+          <h2>Validation</h2>
+          <p class="muted">Demo-ready checks focused on correctness, traceability, and operational outputs.</p>
+        </div>
+        <div class="grid4">
+          <div class="card"><h3>Five-agent workflow live</h3><p class="muted">End-to-end intake → trace → match → ops → comms.</p></div>
+          <div class="card"><h3>Reassurance supported</h3><p class="muted">Safe-path messaging uses graph provenance evidence.</p></div>
+          <div class="card"><h3>GPU inference in loop</h3><p class="muted">Telemetry + real model serving in the demo architecture.</p></div>
+          <div class="card"><h3>Open-source</h3><p class="muted">Repo + Space links for judges and reviewers.</p></div>
         </div>
       </section>
 
@@ -138,35 +329,31 @@
           <h2>Links</h2>
           <ul class="list">
             <li>
-              GitHub: <a id="githubLink" href="https://github.com/" target="_blank" rel="noreferrer">github.com/&lt;org&gt;/pheromone</a>
+              GitHub:
+              <a id="githubLink" href="https://github.com/" target="_blank" rel="noreferrer">github.com/&lt;org&gt;/pheromone</a>
             </li>
+            <li>Demo app: <a id="demoLink3" href="#" target="_blank" rel="noreferrer">demo URL</a></li>
             <li>
               Build-in-public thread: <a id="xLink" href="https://x.com/" target="_blank" rel="noreferrer">x.com/&lt;handle&gt;</a>
             </li>
-            <li>
-              Contact: <a id="contactLink" href="mailto:hello@example.com">hello@example.com</a>
-            </li>
+            <li>Contact: <a id="contactLink" href="mailto:hello@example.com">hello@example.com</a></li>
           </ul>
-          <p class="muted small">
-            Replace the placeholder links above in <code>infra/hf_space/app/index.html</code> before deploying.
-          </p>
+          <!-- <p class="muted small">
+            Replace the placeholder links in <code>hf-space-pheromone/app/app.js</code> (and mirrored infra copy) before
+            deploying.
+          </p> -->
         </div>
       </section>
     </main>
 
     <footer class="container footer">
       <div class="footer__cta">
-        <h2>Like this Space if you’d want this for your local grocery store</h2>
-        <p class="muted">
-          Likes help this project win the HF Special Prize and get to production.
-        </p>
+        <h2>Like this Space if you’d want purchase-level recall messaging</h2>
+        <p class="muted">Demo mode only — no real notifications are sent.</p>
       </div>
-      <div class="footer__note">
-        Demo mode only — no real notifications are ever sent.
-      </div>
+      <div class="footer__note">This Space is a static walkthrough UI for the demo narrative.</div>
     </footer>
 
     <script src="app.js"></script>
   </body>
 </html>
-
